@@ -1,156 +1,144 @@
 #![allow(dead_code, unused_variables, unused_mut)]
 
-#[derive(Debug)]
-struct State {
-    transitions: Vec<(Trans, usize)>, // (input symbol, destination state index)
-}
+type ReToken = Box<RegexToken>;
 
-#[derive(Debug)]
-struct NFA {
-    graph: Vec<State>,
-    initial_state: usize,
-    accepting_states: Vec<usize>,
-}
-
-impl NFA {
-    fn new(graph: Vec<State>, initial_state: usize, accepting_states: Vec<usize>) -> Self {
-        NFA {
-            graph,
-            initial_state,
-            accepting_states,
-        }
-    }
-
-    fn simulate(&self, input: &str) -> bool {
-        let mut current_states = vec![self.initial_state];
-
-        for c in input.chars() {
-            let mut next_states = vec![];
-
-            for state in &current_states {
-                for (trans, dest_state) in &self.graph[*state].transitions {
-                    // println!("char: {c}, trans: {trans:?}, dest_state: {dest_state:?}");
-                    match trans {
-                        Trans::Symbol(symbol) if *symbol == c => {
-                            next_states.push(*dest_state);
-                        }
-                        Trans::Epsilon => {
-                            next_states.push(*dest_state);
-                        }
-                        _ => {}
-                    }
-                }
-            }
-
-            current_states = next_states;
-        }
-
-        // println!("states: {:?}", current_states);
-
-        current_states
-            .iter()
-            .any(|&state| self.accepting_states.contains(&state))
-    }
-}
-
-#[derive(PartialEq, Clone, Debug)]
-enum Trans {
+#[derive(Debug, PartialEq, Clone)]
+enum RegexToken {
+    Token(ReToken),
     Symbol(char),
-    Epsilon,
+    Number(usize),
+    Concat((ReToken, ReToken)),
+    Union((ReToken, ReToken)),
+    Star(ReToken),
+    Dot,
+    None,
 }
 
-struct Regex {
-    regex: &'static str,
+macro_rules! Sym {
+    ($c:expr) => {
+        RegexToken::Symbol($c)
+    };
 }
+
+macro_rules! Star {
+    ($c:expr) => {
+        RegexToken::Star(Box::new($c))
+    };
+}
+
+macro_rules! Concat {
+    ($a:expr, $b:expr) => {
+        RegexToken::Concat((Box::new($a), Box::new($b)))
+    };
+}
+
+macro_rules! Union {
+    ($a:expr, $b:expr) => {
+        RegexToken::Union((Box::new($a), Box::new($b)))
+    };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_concat() {
+        assert_eq!(
+            Regex::new(String::from("ab")),
+            Concat!(Sym!('a'), Sym!('b'))
+        )
+    }
+
+    #[test]
+    fn test_union() {
+        assert_eq!(
+            Regex::new(String::from("(a|b)")),
+            Concat!(Union!(Sym!('a'), Sym!('b')), RegexToken::None)
+        )
+    }
+
+    #[test]
+    fn test_none() {
+        assert_eq!(Regex::new(String::from("")), RegexToken::None)
+    }
+
+    #[test]
+    fn test_star() {
+        assert_eq!(
+            Regex::new(String::from("a*b")),
+            Concat!(Star!(Sym!('a')), Sym!('b'))
+        )
+    }
+}
+
+#[derive(Debug, PartialEq)]
+struct Regex {}
 
 impl Regex {
-    fn new(input: &'static str) -> Self {
-        Regex { regex: input }
+    fn new(input: String) -> RegexToken {
+        Regex::parse(input)
     }
 
-    fn compile_nfa(&self) -> NFA {
-        let mut graph: Vec<State> = vec![State {
-            transitions: vec![],
-        }];
-        let initial_state = 0;
-        let mut accepting_states = vec![];
+    fn parse(input: String) -> RegexToken {
+        if input.is_empty() {
+            return RegexToken::None;
+        }
 
-        let mut current_state = initial_state;
-        let mut prev_state: Option<usize> = None;
+        let mut chars = input.chars().peekable();
+        let mut parsed_token = Self::parse_token(&mut RegexToken::None, &mut chars);
 
-        let input: Vec<char> = self.regex.chars().collect();
+        Self::parse_expression(&mut parsed_token, &mut chars)
+    }
 
-        for (i, &c) in input.iter().enumerate() {
-            match c {
-                '*' => {}
-                '+' => todo!(),
-                '.' => {
-                    let next_state = graph.len();
-                    println!("{next_state}");
-                    graph.push(State {
-                        transitions: vec![],
-                    });
-
-                    graph[next_state]
-                        .transitions
-                        .push((Trans::Epsilon, next_state));
-
-                    current_state = next_state;
-                }
+    fn parse_expression(
+        left: &mut RegexToken,
+        chars: &mut std::iter::Peekable<std::str::Chars>,
+    ) -> RegexToken {
+        while let Some(&next) = chars.peek() {
+            match next {
                 '|' => {
-                    let before = input[i - 1];
-                    let after = input[i + 1];
-                    let next_state = graph.len();
-                    graph.push(State {
-                        transitions: vec![],
-                    });
-                    graph[current_state]
-                        .transitions
-                        .push((Trans::Symbol(c), next_state));
-
-                    current_state = next_state;
+                    chars.next(); // Consume '|'
+                    let right = Self::parse_token(left, chars);
+                    *left = RegexToken::Union((Box::new(left.clone()), Box::new(right)));
+                }
+                '*' => {
+                    chars.next(); // Consume '|'
+                    let right = Self::parse_token(left, chars);
+                    *left = RegexToken::Star(Box::new(left.clone()));
                 }
                 _ => {
-                    // let after = input[i + 1];
-                    // if after != '|' {
-                    let next_state = graph.len();
-                    graph.push(State {
-                        transitions: vec![],
-                    });
-                    graph.push(State {
-                        transitions: vec![],
-                    });
-
-                    graph[current_state]
-                        .transitions
-                        .push((Trans::Symbol(c), next_state + 1));
-                    graph[next_state]
-                        .transitions
-                        .push((Trans::Epsilon, next_state + 1));
-
-                    current_state = next_state + 1;
-                    // }
+                    let right = Self::parse_token(left, chars);
+                    *left = RegexToken::Concat((Box::new(left.clone()), Box::new(right)));
                 }
             }
         }
+        left.clone()
+    }
 
-        accepting_states.push(current_state);
-
-        NFA::new(graph, initial_state, accepting_states)
+    fn parse_token(
+        left: &mut RegexToken,
+        chars: &mut std::iter::Peekable<std::str::Chars>,
+    ) -> RegexToken {
+        match chars.next() {
+            Some('(') => {
+                let token = Self::parse(chars.collect());
+                chars.next(); // Skip ')'
+                token
+            }
+            Some('.') => RegexToken::Dot,
+            Some(c) if c.is_ascii_alphanumeric() => Sym!(c),
+            Some('*') => {
+                let token = Self::parse_token(left, chars);
+                Star!(left.clone())
+            }
+            _ => RegexToken::None, // Handle other cases accordingly
+        }
     }
 }
 
 fn main() {
-    let regex = Regex::new("a.bc");
-    let nfa = regex.compile_nfa();
-
-    println!("NFA: {:#?}", nfa);
-
-    let input = vec!["a", "abcc", "abc", "abbc", "abbbc", "abbbbc", "ac", "ab"];
-
-    println!("Regex: {:#?}", regex.regex);
-
-    for inp in input {
-        println!("{} -> {:?}", inp, nfa.simulate(inp)); // Should match
-    }
+    let input = "a*b";
+    let token = Regex::new(String::from(input));
+    println!("{input}\n{:#?}", token)
 }
