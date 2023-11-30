@@ -1,11 +1,16 @@
+use crate::regex::RegexToken;
 use std::collections::HashMap;
 
-use crate::regex::RegexToken;
+#[derive(Debug, Clone, PartialEq)]
+pub enum Trans {
+    Symbol(char),
+    Epsilon,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 struct State {
     id: usize,
-    transitions: Vec<(usize, char)>,
+    transitions: Vec<(usize, Trans)>,
 }
 
 impl State {
@@ -42,11 +47,13 @@ impl NFA {
         id
     }
 
-    pub fn regex_to_nfa(&mut self, input: RegexToken) {
+    pub fn regex_to_nfa_helper(&mut self, input: RegexToken) -> (usize, usize) {
         match input {
             RegexToken::Symbol(ch) => {
-                let state_1 = self.add_state();
-                self.add_transition(state_1, state_1 + 1, ch);
+                let first = self.add_state();
+                let last = self.add_state();
+                self.add_transition(first, last, Trans::Symbol(ch));
+                (first, last)
             }
             RegexToken::Concat((left, right)) => {
                 self.regex_to_nfa(*left);
