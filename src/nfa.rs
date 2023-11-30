@@ -73,18 +73,28 @@ impl NFA {
                 self.add_transition(l_last, last, Trans::Epsilon);
                 self.add_transition(r_last, last, Trans::Epsilon);
                 (first, last)
+            }
             RegexToken::Plus(_) => todo!(),
-            RegexToken::Star(_) => todo!(),
+            RegexToken::Star(tok) => {
+                let first = self.add_state();
+                let (t_first, t_last) = self.regex_to_nfa_helper(*tok);
+                self.add_transition(first, t_first, Trans::Epsilon);
+                self.add_transition(t_last, first, Trans::Epsilon);
+                (first, t_last)
+            }
             RegexToken::Dot => {
-                self.add_state();
+                let first = self.add_state();
+                (first, first)
             }
-            RegexToken::None => {
-                self.add_state();
-            }
+            RegexToken::None => (self.add_state(), self.add_state()),
         }
     }
+    pub fn regex_to_nfa(&mut self, input: RegexToken) {
+        self.regex_to_nfa_helper(input);
+        self.deduce_accepting_states();
+    }
 
-    pub fn add_transition(&mut self, from: usize, to: usize, trans: char) {
+    pub fn add_transition(&mut self, from: usize, to: usize, trans: Trans) {
         self.transitions
             .entry(from)
             .and_modify(|val| val.push(to))
@@ -105,22 +115,26 @@ impl NFA {
     }
 
     pub fn simulate(&mut self, input: String) -> bool {
+        use Trans::*;
         let mut current = self.states.get(&self.initial_state).unwrap();
         let mut chars = input.chars();
         'simu: while let Some(nxt) = chars.next() {
             println!("current: {current:?}");
-            for (id, ch) in &current.transitions {
-                println!("nxt: {nxt} ch: {ch}");
-                if *ch == nxt {
-                    current = self.states.get(id).unwrap();
+            for (id, trans) in &current.transitions {
+                println!("nxt: {nxt} ch: {trans:?}");
+                if let Symbol(ch) = trans {
+                    if *ch == nxt {
+                        current = self.states.get(id).unwrap();
+                    } else {
+                        break 'simu;
+                    }
                 } else {
-                    break 'simu;
+                    // Epsilon case
                 }
             }
         }
         println!("current node: {current:?}");
         let current_id = current.id;
-        self.deduce_accepting_states();
         self.accepting_states.iter().any(|&id| id == current_id)
     }
 }
