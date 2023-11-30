@@ -63,7 +63,16 @@ impl NFA {
                 self.add_transition(l_last, r_first, Trans::Epsilon);
                 (first, r_last)
             }
-            RegexToken::Union(_) => todo!(),
+            RegexToken::Union((left, right)) => {
+                let first = self.add_state();
+                let (l_first, l_last) = self.regex_to_nfa_helper(*left);
+                let (r_first, r_last) = self.regex_to_nfa_helper(*right);
+                self.add_transition(first, l_first, Trans::Epsilon);
+                self.add_transition(first, r_first, Trans::Epsilon);
+                let last = self.add_state();
+                self.add_transition(l_last, last, Trans::Epsilon);
+                self.add_transition(r_last, last, Trans::Epsilon);
+                (first, last)
             RegexToken::Plus(_) => todo!(),
             RegexToken::Star(_) => todo!(),
             RegexToken::Dot => {
