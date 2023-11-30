@@ -56,8 +56,12 @@ impl NFA {
                 (first, last)
             }
             RegexToken::Concat((left, right)) => {
-                self.regex_to_nfa(*left);
-                self.regex_to_nfa(*right);
+                let first = self.add_state();
+                let (l_first, l_last) = self.regex_to_nfa_helper(*left);
+                let (r_first, r_last) = self.regex_to_nfa_helper(*right);
+                self.add_transition(first, l_first, Trans::Epsilon);
+                self.add_transition(l_last, r_first, Trans::Epsilon);
+                (first, r_last)
             }
             RegexToken::Union(_) => todo!(),
             RegexToken::Plus(_) => todo!(),
