@@ -1,4 +1,4 @@
-#![allow(dead_code, unused_variables, unused_mut)]
+#![allow(dead_code, unused_variables, unused_macros, unused_mut)]
 
 macro_rules! Sym {
     ($c:expr) => {
@@ -134,6 +134,7 @@ impl Regex {
                 _ => {
                     let right = Self::parse_token(chars);
                     if let RegexToken::None = right {
+                        // do nothing
                     } else {
                         *left = RegexToken::Concat((Box::new(left.clone()), Box::new(right)));
                     }
