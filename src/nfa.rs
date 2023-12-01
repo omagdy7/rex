@@ -1,14 +1,20 @@
 use crate::regex::RegexToken;
-use std::collections::HashMap;
+use std::{
+    clone,
+    collections::{HashMap, HashSet, VecDeque},
+    iter::Peekable,
+    str::Chars,
+    usize,
+};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Trans {
     Symbol(char),
     Epsilon,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-struct State {
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct State {
     id: usize,
     transitions: Vec<(usize, Trans)>,
 }
@@ -24,7 +30,7 @@ impl State {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct NFA {
-    states: HashMap<usize, State>,
+    pub states: HashMap<usize, State>,
     transitions: HashMap<usize, Vec<usize>>,
     initial_state: usize,
     accepting_states: Vec<usize>,
@@ -79,19 +85,27 @@ impl NFA {
                 let first = self.add_state();
                 let (t_first, t_last) = self.regex_to_nfa_helper(*tok);
                 self.add_transition(first, t_first, Trans::Epsilon);
-                self.add_transition(t_last, first, Trans::Epsilon);
-                (first, t_last)
+                self.add_transition(t_last, t_first, Trans::Epsilon);
+                let last = self.add_state();
+                self.add_transition(first, last, Trans::Epsilon);
+                self.add_transition(t_last, last, Trans::Epsilon);
+                (first, last)
             }
             RegexToken::Dot => {
                 let first = self.add_state();
                 (first, first)
             }
-            RegexToken::None => (self.add_state(), self.add_state()),
+            RegexToken::None => {
+                let state = self.add_state();
+                (state, state)
+            }
         }
     }
     pub fn regex_to_nfa(&mut self, input: RegexToken) {
-        self.regex_to_nfa_helper(input);
-        self.deduce_accepting_states();
+        let (_, last) = self.regex_to_nfa_helper(input);
+        self.accepting_states.push(last);
+        let dead_state = self.add_state();
+        self.add_transition(last, dead_state, Trans::Symbol('#'));
     }
 
     pub fn add_transition(&mut self, from: usize, to: usize, trans: Trans) {
@@ -106,36 +120,60 @@ impl NFA {
             .push((to, trans));
     }
 
-    fn deduce_accepting_states(&mut self) {
-        for (id, state) in &self.states {
-            if state.transitions.is_empty() {
-                self.accepting_states.push(*id)
+    fn dfs(&self, state: &State, mut chars: Chars, next_states: &mut HashSet<usize>) {
+        println!("{state:?}\n{chars:?}");
+        for (id, trans) in &state.transitions {
+            match trans {
+                Trans::Symbol(ch) => {
+                    if ch == &'#' {
+                        dbg!(ch);
+                        chars.next();
+                        self.dfs(self.states.get(id).unwrap(), chars.clone(), next_states);
+                        next_states.remove(&(id - 1));
+                        println!("Removing {}", id - 1);
+                        next_states.insert(*id);
+                        println!("ch: {ch}: Inserting {id}");
+                    }
+                    let mut cloned = chars.clone().peekable();
+                    let nxt_peek = cloned.peek();
+                    match nxt_peek {
+                        Some(nxt) if nxt == ch || nxt == &'.' => {
+                            // println!("nxt: {nxt}");
+                            chars.next();
+                            self.dfs(self.states.get(id).unwrap(), chars.clone(), next_states);
+                            next_states.insert(*id);
+                            println!("ch: {ch} Inserting {id}");
+                        }
+                        None => {}
+                        _ => {}
+                    }
+                }
+                Trans::Epsilon => {
+                    self.dfs(self.states.get(id).unwrap(), chars.clone(), next_states);
+                    next_states.insert(*id);
+                    println!("ch: eps Inserting {id}");
+                }
             }
         }
     }
 
-    pub fn simulate(&mut self, input: String) -> bool {
-        use Trans::*;
-        let mut current = self.states.get(&self.initial_state).unwrap();
-        let mut chars = input.chars();
-        'simu: while let Some(nxt) = chars.next() {
-            println!("current: {current:?}");
-            for (id, trans) in &current.transitions {
-                println!("nxt: {nxt} ch: {trans:?}");
-                if let Symbol(ch) = trans {
-                    if *ch == nxt {
-                        current = self.states.get(id).unwrap();
-                    } else {
-                        break 'simu;
-                    }
-                } else {
-                    // Epsilon case
-                }
+    pub fn match_re(&mut self, input: String) -> bool {
+        let chars = input.chars();
+        let mut next_states = HashSet::new();
+        let _last_state = self.dfs(
+            self.states.get(&self.initial_state).unwrap(),
+            chars,
+            &mut next_states,
+        );
+
+        dbg!(&next_states, &self.accepting_states);
+
+        for nxt in next_states {
+            if self.accepting_states.iter().any(|&x| x == nxt) {
+                return true;
             }
         }
-        println!("current node: {current:?}");
-        let current_id = current.id;
-        self.accepting_states.iter().any(|&id| id == current_id)
+        false
     }
 }
 
@@ -144,27 +182,58 @@ mod tests {
     use super::*;
     use crate::regex::Regex;
 
-    #[test]
-    fn test_simple_succ() {
-        let input = "abc";
-        let token = Regex::new(String::from(input));
+    fn test(regex: &str, input: &str) -> bool {
+        let token = Regex::new(String::from(regex));
+        // dbg!(&token);
         let mut nfa = NFA::new();
         nfa.regex_to_nfa(token);
-        nfa.add_state();
-        let inp = "abc";
-        let output = nfa.simulate(String::from(inp));
-        assert!(output)
+        let mut x: Vec<(&usize, &State)> = nfa.states.iter().map(|(k, v)| (k, v)).collect();
+        x.sort();
+        dbg!(x);
+        nfa.match_re(String::from(input))
     }
 
     #[test]
-    fn test_simple_fail() {
-        let input = "abc";
-        let token = Regex::new(String::from(input));
-        let mut nfa = NFA::new();
-        nfa.regex_to_nfa(token);
-        nfa.add_state();
-        let inp = "abd";
-        let output = nfa.simulate(String::from(inp));
-        assert!(!output)
+    fn test_concat_succ() {
+        assert!(test("abc", "abc"));
+        assert!(test("", ""));
+        assert!(test("This should match", "This should match"));
+    }
+
+    #[test]
+    fn test_concat_fail() {
+        assert!(!test("abc", "abd"));
+        assert!(!test("abc", "abcc"));
+        assert!(!test("abc", "notabc"));
+        assert!(!test("abc", ""));
+    }
+
+    #[test]
+    fn test_union_succ() {
+        assert!(test("(a|b)", "a"));
+        assert!(test("(a|b)", "b"));
+        assert!(test("(a|b)b", "bb"));
+        assert!(test("(a|b)a", "ba"));
+        assert!(test("(a|b).", "at"));
+    }
+
+    #[test]
+    fn test_union_fail() {
+        assert!(!test("(a|b)", "x"));
+        assert!(!test("(a|b)", "ax"));
+    }
+
+    #[test]
+    fn test_star_succ() {
+        assert!(test("(0)*1(0)*", "000000000100000"));
+        assert!(test("a*b", "b"));
+        assert!(test("a*bcd", "aaaaaabcd"));
+    }
+
+    #[test]
+    fn test_star_fail() {
+        assert!(!test("a*b", "aabbbb"));
+        assert!(!test("1*0", "20"));
+        assert!(!test("(0)*1(0)*", "101100000"));
     }
 }

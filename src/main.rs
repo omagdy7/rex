@@ -3,15 +3,19 @@ mod regex;
 use nfa::*;
 use regex::*;
 
-fn main() {
-    let input = "a*b";
-    let token = Regex::new(String::from(input));
-    println!("{input}\n{:#?}", token);
-
+fn test(regex: &str, input: &str) -> bool {
+    let token = Regex::new(String::from(regex));
+    dbg!(&token);
     let mut nfa = NFA::new();
     nfa.regex_to_nfa(token);
-    println!("NFA: {:#?}", nfa);
-    // let inp = "abcdefglmno";
-    // let output = nfa.simulate(String::from(inp));
-    // println!("{inp} was = {output}")
+    let mut x: Vec<(&usize, &State)> = nfa.states.iter().map(|(k, v)| (k, v)).collect();
+    x.sort();
+    dbg!(x);
+    // nfa.match_re(String::from(input))
+    true
+}
+
+fn main() {
+    // println!("{}", test("a.b..", "a.bxb"));
+    println!("{}", test(".*b", "aaaaaabbb"))
 }
