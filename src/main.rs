@@ -4,9 +4,9 @@ use nfa::*;
 use regex::*;
 
 fn test(regex: &str, input: &str) -> bool {
-    let regex = Regex::new(String::from(regex));
+    let regex = Regex::new(regex);
     let nfa = NFA::from(regex);
-    nfa.matches(String::from(input))
+    nfa.matches(input)
 }
 
 fn main() {

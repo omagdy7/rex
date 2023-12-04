@@ -153,7 +153,7 @@ impl NFA {
         result
     }
 
-    pub fn matches(&self, input: String) -> bool {
+    pub fn matches(&self, input: &str) -> bool {
         let chars = input.chars();
         self.matches_helper(self.states.get(&self.initial_state).unwrap(), chars)
     }
@@ -165,12 +165,12 @@ mod tests {
     use crate::regex::Regex;
 
     fn test(regex: &str, input: &str) -> bool {
-        let token = Regex::new(String::from(regex));
+        let token = Regex::new(regex);
         let mut nfa = NFA::new();
         nfa.regex_to_nfa(token);
         let mut x: Vec<(&usize, &State)> = nfa.states.iter().map(|(k, v)| (k, v)).collect();
         x.sort();
-        nfa.matches(String::from(input))
+        nfa.matches(input)
     }
 
     #[test]

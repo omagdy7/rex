@@ -44,11 +44,11 @@ pub enum Regex {
 }
 
 impl Regex {
-    pub fn new(input: String) -> Regex {
+    pub fn new(input: &str) -> Regex {
         Regex::parse(input)
     }
 
-    fn parse(input: String) -> Regex {
+    fn parse(input: &str) -> Regex {
         if input.is_empty() {
             return Regex::None;
         }
@@ -102,7 +102,7 @@ impl Regex {
     fn parse_token(chars: &mut std::iter::Peekable<std::str::Chars>) -> Regex {
         match chars.next() {
             Some('(') => {
-                let token = Self::parse(chars.collect());
+                let token = Self::parse(&chars.into_iter().collect::<String>());
                 chars.next(); // Skip ')'
                 token
             }
@@ -119,38 +119,29 @@ mod tests {
 
     #[test]
     fn test_concat() {
-        assert_eq!(
-            Regex::new(String::from("ab")),
-            Concat!(Sym!('a'), Sym!('b'))
-        )
+        assert_eq!(Regex::new("ab"), Concat!(Sym!('a'), Sym!('b')))
     }
 
     #[test]
     fn test_plus() {
         assert_eq!(
-            Regex::new(String::from("(a|b)+c")),
+            Regex::new("(a|b)+c"),
             Concat!(Plus!(Union!(Sym!('a'), Sym!('b'))), Sym!('c'))
         )
     }
 
     #[test]
     fn test_union() {
-        assert_eq!(
-            Regex::new(String::from("(a|b)")),
-            Union!(Sym!('a'), Sym!('b'))
-        )
+        assert_eq!(Regex::new("(a|b)"), Union!(Sym!('a'), Sym!('b')))
     }
 
     #[test]
     fn test_none() {
-        assert_eq!(Regex::new(String::from("")), Regex::None)
+        assert_eq!(Regex::new(""), Regex::None)
     }
 
     #[test]
     fn test_star() {
-        assert_eq!(
-            Regex::new(String::from("a*b")),
-            Concat!(Star!(Sym!('a')), Sym!('b'))
-        )
+        assert_eq!(Regex::new("a*b"), Concat!(Star!(Sym!('a')), Sym!('b')))
     }
 }
