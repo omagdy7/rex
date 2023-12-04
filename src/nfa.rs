@@ -121,7 +121,6 @@ impl NFA {
     }
 
     fn matches_helper(&self, state: &State, mut chars: Chars) -> bool {
-        println!("{state:?}\n{chars:?}");
         if self.accepting_states.contains(&state.id) {
             return chars.next().is_none();
         }
@@ -208,6 +207,14 @@ mod tests {
     }
 
     #[test]
+    fn test_star_empty_input() {
+        assert!(test("", ""));
+        assert!(test("a*", ""));
+        assert!(test("b*", ""));
+        assert!(test("(a|b)*", ""));
+    }
+
+    #[test]
     fn test_star_succ() {
         assert!(test("(0)*1(0)*", "000000000100000"));
         assert!(test("(a)*abc(a)*", "aaaaaaabcaaaaaa"));
@@ -224,7 +231,7 @@ mod tests {
 
     #[test]
     fn test_complex_succ() {
+        assert!(test("(a|b|c)*", "abababababcbcba"));
         assert!(test("(a|b)*cc", "aaabababaabacc"));
-        assert!(test("(0)*0101(1)*", "00000101111"));
     }
 }

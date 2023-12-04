@@ -10,7 +10,5 @@ fn test(regex: &str, input: &str) -> bool {
 }
 
 fn main() {
-    println!("{}", dbg!(test("(a|b)a", "aa")));
-    println!("{}", dbg!(test("(a|b)a", "ba")));
-    println!("{}", dbg!(test("(a|b)a", "bb")));
+    dbg!(test("regexisawesome", "regexisawesome"));
 }
