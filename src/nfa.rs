@@ -127,7 +127,7 @@ impl NFA {
         let mut result = false;
         for (id, trans) in &state.transitions {
             match trans {
-                // TODO: chars.nth() Work at O(n) consider using bytes for UTF-8 support
+                // TODO: chars.nth() Work at O(n) consider using bytes instead of losing UTF-8 support
                 Trans::Symbol(ch) => match input.chars().nth(idx) {
                     Some(nxt) if nxt == *ch => {
                         idx += 1;
