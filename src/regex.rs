@@ -2,32 +2,115 @@
 
 macro_rules! Sym {
     ($c:expr) => {
-        RegexToken::Symbol($c)
+        Regex::Symbol($c)
     };
 }
 
 macro_rules! Star {
     ($c:expr) => {
-        RegexToken::Star(Box::new($c))
+        Regex::Star(Box::new($c))
     };
 }
 
 macro_rules! Plus {
     ($c:expr) => {
-        RegexToken::Plus(Box::new($c))
+        Regex::Plus(Box::new($c))
     };
 }
 
 macro_rules! Concat {
     ($a:expr, $b:expr) => {
-        RegexToken::Concat((Box::new($a), Box::new($b)))
+        Regex::Concat((Box::new($a), Box::new($b)))
     };
 }
 
 macro_rules! Union {
     ($a:expr, $b:expr) => {
-        RegexToken::Union((Box::new($a), Box::new($b)))
+        Regex::Union((Box::new($a), Box::new($b)))
     };
+}
+
+type RegexToken = Box<Regex>;
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Regex {
+    Symbol(char),
+    Concat((RegexToken, RegexToken)),
+    Union((RegexToken, RegexToken)),
+    Plus(RegexToken),
+    Star(RegexToken),
+    Dot,
+    None,
+}
+
+impl Regex {
+    pub fn new(input: String) -> Regex {
+        Regex::parse(input)
+    }
+
+    fn parse(input: String) -> Regex {
+        if input.is_empty() {
+            return Regex::None;
+        }
+
+        let mut chars = input.chars().peekable();
+        let mut parsed_token = Self::parse_token(&mut chars);
+
+        Self::parse_expression(&mut parsed_token, &mut chars)
+    }
+
+    fn parse_expression(
+        left: &mut Regex,
+        chars: &mut std::iter::Peekable<std::str::Chars>,
+    ) -> Regex {
+        while let Some(&next) = chars.peek() {
+            match next {
+                '|' => {
+                    chars.next(); // Consume '|'
+                    let right = Self::parse_token(chars);
+                    *left = Regex::Union((Box::new(left.clone()), Box::new(right)));
+                }
+                '*' => {
+                    chars.next(); // Consume '*'
+                    let right = Self::parse_token(chars);
+                    *left = Regex::Concat((
+                        Box::new(Regex::Star(Box::new(left.clone()))),
+                        Box::new(right),
+                    ));
+                }
+                '+' => {
+                    chars.next(); // Consume '+'
+                    let right = Self::parse_token(chars);
+                    *left = Regex::Concat((
+                        Box::new(Regex::Plus(Box::new(left.clone()))),
+                        Box::new(right),
+                    ));
+                }
+                _ => {
+                    let right = Self::parse_token(chars);
+                    if let Regex::None = right {
+                        // do nothing
+                    } else {
+                        *left = Regex::Concat((Box::new(left.clone()), Box::new(right)));
+                    }
+                }
+            }
+        }
+        left.clone()
+    }
+
+    fn parse_token(chars: &mut std::iter::Peekable<std::str::Chars>) -> Regex {
+        match chars.next() {
+            Some('(') => {
+                let token = Self::parse(chars.collect());
+                chars.next(); // Skip ')'
+                token
+            }
+            Some('.') => Regex::Dot,
+            Some(c) if c.is_ascii_alphanumeric() => Sym!(c),
+            _ => Regex::None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -60,7 +143,7 @@ mod tests {
 
     #[test]
     fn test_none() {
-        assert_eq!(Regex::new(String::from("")), RegexToken::None)
+        assert_eq!(Regex::new(String::from("")), Regex::None)
     }
 
     #[test]
@@ -69,91 +152,5 @@ mod tests {
             Regex::new(String::from("a*b")),
             Concat!(Star!(Sym!('a')), Sym!('b'))
         )
-    }
-}
-
-type ReToken = Box<RegexToken>;
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum RegexToken {
-    Symbol(char),
-    Concat((ReToken, ReToken)),
-    Union((ReToken, ReToken)),
-    Plus(ReToken),
-    Star(ReToken),
-    Dot,
-    None,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Regex {}
-
-impl Regex {
-    pub fn new(input: String) -> RegexToken {
-        Regex::parse(input)
-    }
-
-    fn parse(input: String) -> RegexToken {
-        if input.is_empty() {
-            return RegexToken::None;
-        }
-
-        let mut chars = input.chars().peekable();
-        let mut parsed_token = Self::parse_token(&mut chars);
-
-        Self::parse_expression(&mut parsed_token, &mut chars)
-    }
-
-    fn parse_expression(
-        left: &mut RegexToken,
-        chars: &mut std::iter::Peekable<std::str::Chars>,
-    ) -> RegexToken {
-        while let Some(&next) = chars.peek() {
-            match next {
-                '|' => {
-                    chars.next(); // Consume '|'
-                    let right = Self::parse_token(chars);
-                    *left = RegexToken::Union((Box::new(left.clone()), Box::new(right)));
-                }
-                '*' => {
-                    chars.next(); // Consume '*'
-                    let right = Self::parse_token(chars);
-                    *left = RegexToken::Concat((
-                        Box::new(RegexToken::Star(Box::new(left.clone()))),
-                        Box::new(right),
-                    ));
-                }
-                '+' => {
-                    chars.next(); // Consume '+'
-                    let right = Self::parse_token(chars);
-                    *left = RegexToken::Concat((
-                        Box::new(RegexToken::Plus(Box::new(left.clone()))),
-                        Box::new(right),
-                    ));
-                }
-                _ => {
-                    let right = Self::parse_token(chars);
-                    if let RegexToken::None = right {
-                        // do nothing
-                    } else {
-                        *left = RegexToken::Concat((Box::new(left.clone()), Box::new(right)));
-                    }
-                }
-            }
-        }
-        left.clone()
-    }
-
-    fn parse_token(chars: &mut std::iter::Peekable<std::str::Chars>) -> RegexToken {
-        match chars.next() {
-            Some('(') => {
-                let token = Self::parse(chars.collect());
-                chars.next(); // Skip ')'
-                token
-            }
-            Some('.') => RegexToken::Dot,
-            Some(c) if c.is_ascii_alphanumeric() => Sym!(c),
-            _ => RegexToken::None,
-        }
     }
 }
