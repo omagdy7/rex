@@ -1,4 +1,4 @@
-use crate::regex::RegexToken;
+use crate::regex::Regex;
 use std::{collections::HashMap, str::Chars, usize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -30,6 +30,14 @@ pub struct NFA {
     accepting_states: Vec<usize>,
 }
 
+impl From<Regex> for NFA {
+    fn from(regex: Regex) -> Self {
+        let mut nfa = NFA::new();
+        nfa.regex_to_nfa(regex);
+        nfa
+    }
+}
+
 impl NFA {
     pub fn new() -> Self {
         Self {
@@ -47,15 +55,15 @@ impl NFA {
         id
     }
 
-    pub fn regex_to_nfa_helper(&mut self, input: RegexToken) -> (usize, usize) {
-        match input {
-            RegexToken::Symbol(ch) => {
+    pub fn regex_to_nfa_helper(&mut self, regex: Regex) -> (usize, usize) {
+        match regex {
+            Regex::Symbol(ch) => {
                 let first = self.add_state();
                 let last = self.add_state();
                 self.add_transition(first, last, Trans::Symbol(ch));
                 (first, last)
             }
-            RegexToken::Concat((left, right)) => {
+            Regex::Concat((left, right)) => {
                 let first = self.add_state();
                 let (l_first, l_last) = self.regex_to_nfa_helper(*left);
                 let (r_first, r_last) = self.regex_to_nfa_helper(*right);
@@ -63,7 +71,7 @@ impl NFA {
                 self.add_transition(l_last, r_first, Trans::Epsilon);
                 (first, r_last)
             }
-            RegexToken::Union((left, right)) => {
+            Regex::Union((left, right)) => {
                 let first = self.add_state();
                 let (l_first, l_last) = self.regex_to_nfa_helper(*left);
                 let (r_first, r_last) = self.regex_to_nfa_helper(*right);
@@ -74,8 +82,8 @@ impl NFA {
                 self.add_transition(r_last, last, Trans::Epsilon);
                 (first, last)
             }
-            RegexToken::Plus(_) => todo!(),
-            RegexToken::Star(tok) => {
+            Regex::Plus(_) => todo!(),
+            Regex::Star(tok) => {
                 let first = self.add_state();
                 let (t_first, t_last) = self.regex_to_nfa_helper(*tok);
                 self.add_transition(first, t_first, Trans::Epsilon);
@@ -85,18 +93,18 @@ impl NFA {
                 self.add_transition(t_last, last, Trans::Epsilon);
                 (first, last)
             }
-            RegexToken::Dot => {
+            Regex::Dot => {
                 let first = self.add_state();
                 (first, first)
             }
-            RegexToken::None => {
+            Regex::None => {
                 let state = self.add_state();
                 (state, state)
             }
         }
     }
-    pub fn regex_to_nfa(&mut self, input: RegexToken) {
-        let (_, last) = self.regex_to_nfa_helper(input);
+    pub fn regex_to_nfa(&mut self, regex: Regex) {
+        let (_, last) = self.regex_to_nfa_helper(regex);
         self.accepting_states.push(last);
     }
 
@@ -145,7 +153,7 @@ impl NFA {
         result
     }
 
-    pub fn matches(&mut self, input: String) -> bool {
+    pub fn matches(&self, input: String) -> bool {
         let chars = input.chars();
         self.matches_helper(self.states.get(&self.initial_state).unwrap(), chars)
     }
@@ -174,6 +182,7 @@ mod tests {
 
     #[test]
     fn test_concat_fail() {
+        assert!(!test("abc", "abd"));
         assert!(!test("abc", "abd"));
         assert!(!test("abc", "abcc"));
         assert!(!test("abc", "notabc"));

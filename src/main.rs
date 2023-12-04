@@ -4,13 +4,13 @@ use nfa::*;
 use regex::*;
 
 fn test(regex: &str, input: &str) -> bool {
-    let token = Regex::new(String::from(regex));
-    let mut nfa = NFA::new();
-    nfa.regex_to_nfa(token);
+    let regex = Regex::new(String::from(regex));
+    let nfa = NFA::from(regex);
     nfa.matches(String::from(input))
 }
 
 fn main() {
-    // println!("{}", test("a.b..", "a.bxb"));
-    println!("{}", test(".b", "ab"))
+    println!("{}", dbg!(test("(a|b)a", "aa")));
+    println!("{}", dbg!(test("(a|b)a", "ba")));
+    println!("{}", dbg!(test("(a|b)a", "bb")));
 }
