@@ -1,5 +1,5 @@
 use crate::regex::Regex;
-use std::{collections::HashMap, str::Chars, usize};
+use std::{collections::HashMap, usize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Trans {
@@ -120,32 +120,25 @@ impl NFA {
             .push((to, trans));
     }
 
-    fn matches_helper(&self, state: &State, mut chars: Chars) -> bool {
+    fn matches_helper(&self, state: &State, input: &str, mut idx: usize) -> bool {
         if self.accepting_states.contains(&state.id) {
-            return chars.next().is_none();
+            return idx >= input.len();
         }
         let mut result = false;
         for (id, trans) in &state.transitions {
             match trans {
-                Trans::Symbol(ch) => {
-                    if *id == state.id {
-                        chars.next();
-                        result |= self.matches_helper(self.states.get(id).unwrap(), chars.clone());
+                // TODO: chars.nth() Work at O(n) consider using bytes for UTF-8 support
+                Trans::Symbol(ch) => match input.chars().nth(idx) {
+                    Some(nxt) if nxt == *ch => {
+                        idx += 1;
+                        result |= self.matches_helper(self.states.get(id).unwrap(), input, idx);
+                        idx -= 1;
                     }
-                    let mut cloned = chars.clone().peekable();
-                    let nxt_peek = cloned.peek();
-                    match nxt_peek {
-                        Some(nxt) if nxt == ch => {
-                            chars.next();
-                            result |=
-                                self.matches_helper(self.states.get(id).unwrap(), chars.clone());
-                        }
-                        None => {}
-                        _ => {}
-                    }
-                }
+                    None => {}
+                    _ => {}
+                },
                 Trans::Epsilon => {
-                    result |= self.matches_helper(self.states.get(id).unwrap(), chars.clone());
+                    result |= self.matches_helper(self.states.get(id).unwrap(), input, idx);
                 }
             }
         }
@@ -153,8 +146,7 @@ impl NFA {
     }
 
     pub fn matches(&self, input: &str) -> bool {
-        let chars = input.chars();
-        self.matches_helper(self.states.get(&self.initial_state).unwrap(), chars)
+        self.matches_helper(self.states.get(&self.initial_state).unwrap(), input, 0)
     }
 }
 
