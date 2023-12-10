@@ -130,8 +130,13 @@ impl NFA {
                 // TODO: chars.nth() Work at O(n) consider using bytes instead of losing UTF-8 support
                 Trans::Symbol(ch) => match input.chars().nth(idx) {
                     Some(nxt) if nxt == *ch => {
+                        // choose
                         idx += 1;
+
+                        //explore
                         result |= self.matches_helper(self.states.get(id).unwrap(), input, idx);
+
+                        // unchoose
                         idx -= 1;
                     }
                     None => {}

@@ -64,6 +64,7 @@ impl Regex {
         chars: &mut std::iter::Peekable<std::str::Chars>,
     ) -> Regex {
         while let Some(&next) = chars.peek() {
+            dbg!(next);
             match next {
                 '|' => {
                     chars.next(); // Consume '|'
@@ -87,6 +88,7 @@ impl Regex {
                     ));
                 }
                 _ => {
+                    // it must be a char
                     let right = Self::parse_token(chars);
                     if let Regex::None = right {
                         // do nothing
@@ -106,8 +108,16 @@ impl Regex {
                 chars.next(); // Skip ')'
                 token
             }
+            Some('$') => {
+                let token = Self::parse(&chars.into_iter().collect::<String>());
+                chars.next(); // Skip '$'
+                token
+            }
             Some('.') => Regex::Dot,
-            Some(c) if c.is_ascii_alphanumeric() => Sym!(c),
+            Some(' ') => Sym!(' '),
+            Some(c) if c.is_ascii_alphanumeric() => {
+                Sym!(c)
+            }
             _ => Regex::None,
         }
     }

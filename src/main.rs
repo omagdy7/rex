@@ -5,10 +5,11 @@ use regex::*;
 
 fn test(regex: &str, input: &str) -> bool {
     let regex = Regex::new(regex);
+    println!("{:#?}", regex);
     let nfa = NFA::from(regex);
     nfa.matches(input)
 }
 
 fn main() {
-    dbg!(test("regexisawesome", "regexisawesome"));
+    dbg!(test("aa*", "aa   "));
 }
